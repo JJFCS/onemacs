@@ -25,7 +25,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	(defun onncera-root () (interactive)
+	(defun onncera-root-find () (interactive)
 		(let ((project-root (projectile-project-root))
 			)
 				(if project-root
@@ -34,13 +34,23 @@
 		)
 		)
 		)
+	(defun onncera-root-grep () (interactive)
+		(let ((project-root (projectile-project-root))
+			)
+				(if project-root
+					(consult-grep project-root)
+				(message "NOT IN A PROJECT ---> CREATE .GIT OR .PROJECTILE")
+		)
+		)
+		)
 	(use-package vertico :ensure t :init (vertico-mode) (vertico-multiform-mode) :config
 		(require 'vertico-multiform)
 		(setq vertico-multiform-commands '(
-			(consult-find buffer)
-			(consult-grep buffer)
-			(consult-line buffer)
-			(onncera-root buffer)
+			(consult-find      buffer)
+			(consult-grep      buffer)
+			(consult-line      buffer)
+			(onncera-root-find buffer)
+			(onncera-root-grep buffer)
 			(imenu buffer)
 				)
 			)
