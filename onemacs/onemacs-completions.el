@@ -4,35 +4,61 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; - TODO: INCLUDE THE FOLLOWING MODULES === HELM-LSP, HELM-PROJECTILE, HELM-SWOOP, HELM-C-YASNIPPET
 ;;									HELM-DESCBINDS
+;;									helm-M-x-show-short-doc
 	(use-package helm-describe-modes :ensure t)
-	(use-package helm-ag             :ensure t)
-	(use-package helm-rg             :ensure t)
+	(use-package helm :ensure t
+			:bind (
+		([remap find-file] . helm-find-files) ([remap yank-pop] . helm-show-kill-ring)
+	)
+	)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 	(savehist-mode 1)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-	(use-package helm-flx :ensure t :init (helm-flx-mode) (setq helm-flx-for-helm-locate t))
-	(use-package helm     :ensure t :init (setq helm-M-x-show-short-doc t) (helm-mode)
-
-		:bind (
-
-		([remap apropos]                  . helm-apropos)
-		([remap bookmark-jump]            . helm-bookmarks)
-		([remap execute-extended-command] . helm-M-x)
-		([remap find-file]                . helm-find-files)
-		([remap find-library]             . helm-locate-library)
-		([remap imenu]                    . helm-semantic-or-imenu)
-		([remap locate]                   . helm-locate)
-		([remap switch-to-buffer]         . helm-mini)
-		([remap yank-pop]                 . helm-show-kill-ring)
-
-		)
-
+	(use-package marginalia :ensure t  :init  (marginalia-mode)  (setq marginalia-align 'right))
+	(use-package orderless  :ensure t
+		:custom
+		(completion-styles '(orderless basic)
+				)
 	)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	(use-package vertico :ensure t :init (vertico-mode) (vertico-multiform-mode) :config
+		(require 'vertico-multiform)
+		(setq vertico-multiform-commands '(
+			(consult-find buffer)
+			(consult-grep buffer)
+			(consult-line buffer)
+			(imenu buffer)
+				)
+			)
+		(require 'vertico-quick)
+			:bind (:map vertico-map
+			("C-q"   . vertico-quick-insert) ("M-q" . vertico-quick-exit)
+			("C-c s" . vertico-grid-mode)
+				)
+			)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	(use-package embark-consult :ensure t)
+	(use-package embark         :ensure t)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+	(use-package consult        :ensure t)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	(define-key helm-map (kbd "TAB") #'helm-execute-persistent-action)
 	(define-key helm-map (kbd "C-j") #'helm-select-action)
+	(require 'consult) (require 'embark)
+	(use-package emacs
+		:bind (("C-," . embark-act) ("C-." . embark-dwim))
+								)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
