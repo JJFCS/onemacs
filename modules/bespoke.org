@@ -1,0 +1,103 @@
+mogman’s minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+! FUNCTIONS & VARIABLES
+- these are functions & variables that need to be defined asap
+$ function 1 (done by AI) - check!
+#+begin_src emacs-lisp
+(defun onncera-smart-beginning-of-line () "toggle between indentation and the beginning of the line"
+    (interactive)
+    (let ((old-point (point))) (back-to-indentation) (when (= old-point (point)) (beginning-of-line)
+        )
+    )
+)
+#+end_src
+
+$ function 2 (done by AI) - check!
+#+begin_src emacs-lisp
+(defun onncera-disable-italics ()
+    (interactive)
+    (dolist (face (face-list))
+      (when (memq (face-attribute face     :slant  nil  t)
+                 '(italic oblique))
+              (set-face-attribute face nil :slant 'normal)
+      )))
+#+end_src
+
+$ function 3 (done by AI) - check!
+#+begin_src emacs-lisp
+(defun onncera-switch-theme () "switch themes and disable italics and restore fonts"
+    (interactive)
+    (let ((theme (intern (completing-read "Load theme: " (custom-available-themes)))))
+          (mapc #'disable-theme custom-enabled-themes)
+          (load-theme     theme t) (onncera-disable-italics)
+          (set-face-attribute 'default        nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)
+          (set-face-attribute 'fixed-pitch    nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)
+          (set-face-attribute 'variable-pitch nil :family "CMU Concrete"              :height 140)
+                                                                                                 )
+                                                                                                 )
+#+end_src
+
+$ function 4 (done by AI) - check!
+#+begin_src emacs-lisp
+(defun onncera-conceal-asterisk (candidate) "HIDE STARRED BUFFERS UNTIL `*` IS TYPED IN THE MINIBUFFER"
+    (let* ((name   (if (consp candidate) (car candidate) candidate))
+           (window (active-minibuffer-window)))
+    (or
+            (not (string-prefix-p "*" name))
+            (and  window
+                 (with-current-buffer (window-buffer window)
+                     (string-search "*" (minibuffer-contents-no-properties))))))
+)
+
+(defun onncera-sort-starred-boofers (original prompt &optional default require-match predicate)
+    "filter starred buffers while preserving existing predicates"
+    (funcall original prompt default require-match
+        (lambda (candidate)
+            (and
+                (or (null predicate) (funcall predicate candidate))
+                (onncera-conceal-asterisk candidate))))
+)
+
+(advice-add 'read-buffer :around #'onncera-sort-starred-boofers)
+(defun onncera-buries-boofers () "obliterates a boofer . able to conceal asterisk boofers"
+    (interactive)
+    (kill-buffer
+    (read-buffer "KILL BUFFER - " (current-buffer) t)))
+#+end_src
+
+$ PLAYGROUND
+#+begin_src emacs-lisp
+(defun onncera-choose-fonts ()
+    (interactive)
+    (let ((possible '("JetBrainsMonoNL Nerd Font" "Lexia Mono VF Trial" "LythMonoSquare Nerd Font" "MartianMono Nerd Font Mono")))
+    (let ((selection (completing-read "CHOOSE FONT - " possible)))
+
+    (set-face-attribute 'default        nil :family selection :height 140 :width 'condensed :weight 'regular)
+    (set-face-attribute 'fixed-pitch    nil :family selection :height 140 :width 'condensed :weight 'regular)
+    (message "SELECTED FONT - %s" selection
+        ))))
+
+
+(defun onncera-set-compact-line-height (pixels) "SET COMPACT LINE HEIGHT TO PIXELS THEN REFRESH THE DISPLAY"
+    (interactive "ncompact line height (pixels): ")
+    (unless (boundp 'onncera-line-height-compact-pixels)
+        (user-error "this emacs build does not support compact line height"))
+    (unless (and (integerp pixels) (>= pixels 0))
+        (user-error "compact line height cannot be a negative int"))
+    (setq onncera-line-height-compact-pixels pixels)
+        (force-window-update nil)
+        (redisplay t)
+        (message "compact line height: %d px" pixels))
+(when (boundp 'onncera-line-height-compact-pixels)  ;; start emacs with compact lines
+    (onncera-set-compact-line-height 4))
+#+end_src

@@ -1,0 +1,72 @@
+mogman’s minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+! PROGRAMMING
+$ TABS & INDENTS & SPACES & WHITESPACES & ETC
+#+begin_src emacs-lisp
+(setq whitespace-style
+    '(face indentation newline tabs tab-mark trailing
+        spaces
+        space-before-tab
+        space-after-tab
+        space-mark
+    )
+)
+
+(electric-indent-mode 1)
+
+(setq python-indent-guess-indent-offset nil)
+
+(setq-default tab-always-indent 'complete) (setq-default indent-tabs-mode nil)
+(setq-default tab-width 4)
+(setq-default standard-indent 4)
+#+end_src
+
+$ GIT & VC & MAGIT & ETC
+#+begin_src emacs-lisp
+(use-package git-gutter :ensure t)
+(use-package magit      :ensure t :defer t)
+#+end_src
+
+$ VARIOUS PROGRAMMING LANGUAGES (done by AI) - check!
+#+begin_src emacs-lisp
+(use-package solidity-mode :ensure t)
+(use-package ess           :ensure t)
+(use-package ess-r-mode
+        :ensure ess
+        :mode ("\\.[rR]\\'" . ess-r-mode)
+        :commands R
+        :init
+        (setq ess-style 'RStudio)
+        (setq ess-indent-offset 4)
+        (setq ess-ask-for-ess-directory nil)
+        (setq ess-eval-visibly 'nowait)
+        (setq inferior-R-args "--no-save --no-restore-data")
+        :hook (
+            (ess-r-mode . (lambda () (setq-local ess-indent-offset 4)))
+        )
+)
+#+end_src
+
+! HOOKS
+#+begin_src emacs-lisp
+(add-hook 'before-save-hook 'delete-trailing-whitespace)
+(add-hook   'prog-mode-hook
+    (lambda ()
+        (display-line-numbers-mode)
+        (git-gutter-mode 1)
+        (whitespace-mode 1)
+        (setq-local tab-width 4)
+        (setq-local indent-tabs-mode nil)
+    )
+)
+#+end_src

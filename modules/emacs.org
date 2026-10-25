@@ -1,0 +1,100 @@
+mogman’s minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+! COMPLETIONS & MINIBUFFER
+$ emacs 31 minibuffer
+#+begin_src emacs-lisp
+
+(use-package minibuffer
+    :config (setq completions-sort 'alphabetical)  ;; 'historical'
+    (setq completion-ignore-case t)
+    (setq completion-show-help nil)
+    (setq completion-show-inline-help t) (setq completion-eager-update t) (setq completions-max-height 15)
+    (setq read-buffer-completion-ignore-case t) (setq read-file-name-completion-ignore-case t)
+)
+
+#+end_src
+
+$ FIDO
+#+begin_src emacs-lisp
+
+;; TODO - do not cut the word short when there is a match & when there is a 'Matched' , highlight the word in red - last i checked this is a long ass solution
+(fido-mode 1)
+(define-key icomplete-minibuffer-map (kbd "<right>") #'icomplete-forward-completions) (define-key icomplete-minibuffer-map (kbd "<left>")  #'icomplete-backward-completions) (define-key icomplete-fido-mode-map (kbd "TAB") #'icomplete-force-complete)
+(define-advice icomplete-completions (:filter-return (str) onncera-icomplete-padding)
+    "prepend breathing room before horizontal completion candidates"
+    (when (and (stringp str) (not (string-prefix-p " " str)))
+        (concat "     " str)))
+
+#+end_src
+
+! MISCELLANEOUS
+$ SHELL-POP
+#+begin_src emacs-lisp
+(use-package shell-pop :ensure t
+    :bind ("M-`" . shell-pop)
+    :config
+    (with-eval-after-load 'term
+    (define-key term-raw-map (kbd "M-`") #'shell-pop))  ;; needed for my personal keybind
+    (setq   shell-pop-universal-key "M-`")              ;; the keybind to toggle the shell window
+    (setq   shell-pop-window-position "bottom")
+    (setq   shell-pop-full-span nil)
+    (setq   shell-pop-term-shell shell-file-name)
+    (setq   shell-pop-window-size 50)
+    (setopt shell-pop-shell-type '("ansi-term" "*ansi-term*" (lambda ()  ;; `setopt is important
+                                   (ansi-term shell-pop-term-shell))))
+    (setq   shell-pop-autocd-to-working-dir nil))
+#+end_src
+
+$ IMENU
+#+begin_src emacs-lisp
+(use-package imenu
+    :config (setq imenu-auto-rescan t) (setq imenu-level-separator "/") (setq imenu-max-item-no-type 0))
+#+end_src
+
+$ IBUFFER
+#+begin_src emacs-lisp
+(use-package ibuffer
+    :config
+    (setq ibuffer-default-display-maybe-show-predicates nil)  ;; ensures we initially hide buffers matching those predicates - `*`
+    (add-to-list 'ibuffer-maybe-show-predicates "^\\*")  ;; note - C-u g toggles visibility
+)
+#+end_src
+
+$ MULTIPLE CURSORS
+#+begin_src emacs-lisp
+(use-package multiple-cursors :ensure t :defer t
+    :init   (setq mc/list-file "~/.emacs.d/onemacs-cache/mc-lists.el"))
+#+end_src
+
+$ UNDO & REDO
+#+begin_src emacs-lisp
+(use-package undo-fu :ensure t
+    :bind (
+    ("C-/" . undo-fu-only-undo)
+    ("C-?" . undo-fu-only-redo)
+    )
+)
+
+
+(use-package undo-fu-session
+    :ensure t
+    :init
+    (setq undo-fu-session-directory
+        (expand-file-name "onemacs-cache/undo-fu-session/" user-emacs-directory))
+    (setq undo-fu-session-incompatible-files '
+        ("/COMMIT_EDITMSG\\'" "/git-rebase-todo\\'"))
+
+    :config
+    (undo-fu-session-global-mode)
+    )
+#+end_src

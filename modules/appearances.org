@@ -1,0 +1,33 @@
+mogman’s minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+! THEMES & FONTS & APPEARANCES
+$ PACKAGES
+#+begin_src emacs-lisp
+(use-package autothemer      :ensure t)  ;; TODO - DEPENDENCY FOR PINEROSE THEME
+(use-package pixel-themes    :vc (:url "https://github.com/lucasobx/pixel-themes"))
+(use-package pinerose-emacs  :vc (:url "https://github.com/konrad1977/pinerose-emacs")
+    :no-require t)
+#+end_src
+
+$ SETTINGS
+#+begin_src emacs-lisp
+(add-to-list 'warning-suppress-types '(files missing-lexbind-cookie))  ;; TODO - SPECIFICALLY FOR PINEROSE THEME - REMOVE IN FUTURE
+(mapc        'disable-theme custom-enabled-themes)
+(onncera-disable-italics)
+
+(set-face-attribute 'completions-group-title nil :slant 'normal)
+
+(set-face-attribute 'default        nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)  ;; MartianMono Nerd Font Mono
+(set-face-attribute 'fixed-pitch    nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)  ;; MartianMono Nerd Font Mono
+(set-face-attribute 'variable-pitch nil :family "CMU Concrete" :height 140)
+#+end_src

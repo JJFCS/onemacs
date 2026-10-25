@@ -1,0 +1,76 @@
+mogman's minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+    ;; -*- lexical-binding: t; -*-
+#+end_src
+
+! CUSTOM FILE
+#+begin_src emacs-lisp
+(setq custom-file (expand-file-name "custom.el" user-emacs-directory))
+(load custom-file t)
+#+end_src
+
+! PACKAGE MANAGEMENT
+#+begin_src emacs-lisp
+
+(require 'package)
+(setq package-archives '(
+    ("melpa" . "https://melpa.org/packages/") ("elpa" . "https://elpa.gnu.org/packages/")
+              ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+        )
+)
+
+(setq package-archive-priorities '(
+    ("melpa" . 15) ("elpa" . 10) ("nongnu" . 5)
+        )
+)
+
+(unless (package-installed-p 'use-package) (package-refresh-contents) (package-install 'use-package))
+                    (require 'use-package)
+
+#+end_src
+
+! GENERAL SETTINGS
+#+begin_src emacs-lisp
+
+(add-to-list 'exec-path "/opt/homebrew/bin")
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
+;; NOTE - for variables we use 't' or 'nil'
+;; NOTE - for functions we use numbers (1 == enabled , 0 == disabled , no number means toggle)
+
+(setq inhibit-splash-screen t)
+(setq insert-directory-program "gls")
+(setq enable-recursive-minibuffers t)
+(setq lossage-size 1000)
+(setq locate-command "mdfind")
+(setq view-lossage-auto-refresh t)
+(setq kill-do-not-save-duplicates t)
+(setq completions-detailed t)  ;; annotations (marginalia replacement)
+(setq display-line-numbers-type 'relative)
+(setq savehist-additional-variables '(search-ring regexp-search-ring kill-ring))
+
+(setq recentf-save-file "~/.emacs.d/onemacs-cache/recentf")  ;; NOTE - hardcoding the path
+(setq savehist-file     "~/.emacs.d/onemacs-cache/history")  ;; NOTE - hardcoding the path
+(savehist-mode 1) (recentf-mode 1)  ;; NOTE - to del M-x history go to onemacs-cache & delete the "history" file
+
+(setq make-backup-files nil)
+(setq auto-save-default nil) (setq auto-save-list-file-prefix nil)
+
+(put 'upcase-region 'disabled nil) (put 'downcase-region 'disabled nil)
+
+(blink-cursor-mode 0)
+(delete-selection-mode 1)
+(electric-pair-mode 1)
+(fringe-mode 0)
+
+(setq-default truncate-lines t)
+(setq  global-auto-revert-non-file-buffers t) (global-auto-revert-mode) (global-hl-line-mode)
+
+#+end_src

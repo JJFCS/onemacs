@@ -1,0 +1,187 @@
+mogman’s minimal emacs - mme
+
+LEGEND
+
+"!" == HEADER
+"-" == NOTES
+"$" == SUBTOPIC
+
+#+begin_src emacs-lisp
+;; -*- lexical-binding: t; -*-
+#+end_src
+
+! KEYBINDINGS
+- super cool & important commands
+> view-lossage            (C-h l)
+> view-echo-area-messages (C-h e)
+$ packages related to keybinds
+#+begin_src emacs-lisp
+(use-package which-key
+    :config
+    (setq which-key-show-early-on-C-h t)
+    (setq which-key-idle-delay 1e6)
+    (setq which-key-idle-secondary-delay 0.05)
+    (which-key-mode))
+#+end_src
+
+! reclaiming keys
+$ unbind default digit shortcuts [C-0..9, M-0..9, C-M-0..9]
+#+begin_src emacs-lisp
+(dotimes (i 10)
+    (dolist (prefix '("C-" "M-" "C-M-"))
+        (global-unset-key (kbd (format "%s%d" prefix i)))))
+#+end_src
+
+$ unbind more keys
+#+begin_src emacs-lisp
+
+(global-unset-key (kbd "<end>"   ))      ;; this is the 'end'       key on my logitech keyboard
+(global-unset-key (kbd "<prior>" ))      ;; this is the 'page up'   key on my logitech keyboard
+(global-unset-key (kbd "<help>"  ))      ;; this is the 'insert'    key on my logitech keyboard
+(global-unset-key (kbd "<home>"  ))      ;; this is the 'home'      key on my logitech keyboard
+(global-unset-key (kbd "<next>"  ))      ;; this is the 'page down' key on my logitech keyboard
+(global-unset-key (kbd "<deletechar>"))  ;; this is the 'delete'    key on my logitech keyboard
+
+(dolist (key '("<end>" "<prior>" "<help>" "<home>" "<next>" "<delete>" "<deletechar>"))
+    (dolist (prefix '("" "C-" "M-" "C-M-"))
+        (global-unset-key (kbd (format "%s%s" prefix key)))))
+
+#+end_src
+
+$ unbind F9-F15 [base, C-, M-, S-, C-M-]
+#+begin_src emacs-lisp
+(dotimes (i 7)
+    (let ((f-key (format "<f%d>" (+ i 9))))
+        (dolist (prefix '("" "C-" "M-" "S-" "C-M-"))
+            (global-unset-key (kbd (format "%s%s" prefix f-key))))))
+#+end_src
+
+$ unbind c-c
+#+begin_src emacs-lisp
+(dolist (letter (append (number-sequence ?a ?z)
+                        (number-sequence ?A ?Z)
+                                              )
+                                              )
+    (keymap-global-unset (format "C-c %c" letter)))
+#+end_src
+
+$ unbind etc
+#+begin_src emacs-lisp
+
+(global-unset-key (kbd "M-<down>")) (global-unset-key (kbd "M-<up>"))
+(global-unset-key (kbd "M-<left>")) (global-unset-key (kbd "M-<right>"))
+
+#+end_src
+
+! onncera custom c-c bindings
+$ onncera-a-map (done by AI) - check!
+#+begin_src emacs-lisp
+
+(defvar onncera-a-map (make-sparse-keymap) "onncera C-c a prefix")
+(global-set-key (kbd "C-c a") onncera-a-map)
+(define-key onncera-a-map (kbd "i") #'imenu)
+(define-key onncera-a-map (kbd "l") #'onncera-set-compact-line-height)
+(define-key onncera-a-map (kbd "w") #'whitespace-mode)
+
+(defvar onncera-e-map (make-sparse-keymap) "onncera C-c e prefix - edits")
+(global-set-key (kbd "C-c e") onncera-e-map)
+(define-key onncera-e-map (kbd "t") #'tabify)
+(define-key onncera-e-map (kbd "u") #'untabify)
+
+(global-set-key (kbd "M-o") 'other-window)
+
+#+end_src
+
+$ remaps
+#+begin_src emacs-lisp
+(global-set-key [remap list-buffers] 'ibuffer)
+(global-set-key [remap move-beginning-of-line] 'onncera-smart-beginning-of-line)
+(global-set-key [remap kill-buffer] 'onncera-buries-boofers)
+#+end_src
+
+! NAVIGATION
+#+begin_src emacs-lisp
+
+;; TODO - place this in bashrc (alias emacs="/Applications/Emacs.app/Contents/MacOS/Emacs") - beware renamed applicaton
+;; so that when we want to have a look at what vanilla
+;; emacs original keybindings are , you can just run "emacs -Q" in the terminal
+
+#+end_src
+
+#+begin_src emacs-lisp
+(pcase-dolist (`(,key . ,cmd)
+                  '(
+                       ("<prior>"      . previous-buffer)           ;; 'page up'
+                       ("<next>"       . next-buffer)               ;; 'page down'
+                       ("<home>"       . move-text-up)              ;; 'home'
+                       ("<end>"        . move-text-down)            ;; 'end'
+                       ("<help>"       . git-gutter:previous-hunk)  ;; 'insert'
+                       ("<deletechar>" . git-gutter:next-hunk)      ;; 'delete'
+
+                       ;; Future Modified Keys (just uncomment and fill in as you go!)
+                       ;; ("C-<home>"  . onncera-custom-command-one)  ;; CTRL + 'home'
+                       ;; ("M-<next>"  . onncera-custom-command-two)  ;; ALT  + 'page down'
+
+                       ))
+    (global-set-key (kbd key) cmd))
+#+end_src
+
+#+begin_src emacs-lisp
+(setq avy-timeout-seconds 1.0)
+(pcase-dolist (`(,key . ,cmd)
+                  '(
+                       ("C-0"   . avy-goto-char-timer)  ;; input an arbitrary amount of consecutive chars
+                       ("M-0"   . avy-goto-char)        ;; input one  char  , jump to it with a tree
+                       ("C-M-0" . avy-goto-line)        ;; input zero chars , jump to a line start with a tree
+
+                       ("C-1"   . beginning-of-defun)
+                       ("C-2"   . end-of-defun)
+                       ("C-3"   . mark-defun)
+
+                       ("C-4"   . backward-sexp)
+                       ("C-5"   . forward-sexp)
+                       ("C-6"   . mark-sexp)
+
+                       ("C-7"   . xref-go-back)
+                       ("C-8"   . xref-find-definitions)
+                       ("C-9"   . xref-find-references)
+
+                       ))
+    (global-set-key (kbd key) cmd))
+#+end_src
+
+#+begin_src emacs-lisp
+(pcase-dolist (`(,key . ,cmd)
+                  '(
+                       ;; Javelin
+                       ("<f9>"   . javelin-go-or-assign-to-1)
+                       ("<f10>"  . javelin-go-or-assign-to-2)
+                       ("<f11>"  . javelin-go-or-assign-to-3)
+                       ("<f12>"  . javelin-go-or-assign-to-4)
+                       ("<f13>"  . javelin-delete)                 ;; delete a specific position for the current project/branch
+                       ("<f14>"  . javelin-clear)                  ;; delete all positions for current project/branch
+                       ("<f15>"  . javelin-toggle-quick-menu)
+
+                       ;; Multiple Cursors
+                       ("C-<f9>"  . mc/mark-previous-like-this)    ;; NOTE - need to select a region
+                       ("C-<f10>" . mc/mark-next-like-this)        ;; NOTE - need to select a region
+                       ("C-<f11>" . mc/skip-to-previous-like-this)
+                       ("C-<f12>" . mc/skip-to-next-like-this)
+                       ("C-<f13>" . mc/mark-all-symbols-like-this-in-defun)
+                       ("C-<f14>" . mc/vertical-align-with-space)  ;; NOTE - select a region & add MCs with 'edit-lines' , then move to the end of the line and run this command
+                       ("C-<f15>" . mc/edit-lines)
+
+                       ;; Magit
+                       ("M-<f9>"  . magit-log-buffer-file)
+
+                       ))
+    (global-set-key (kbd key) cmd))
+#+end_src
+
+$ TESTING KEYBINDS
+#+begin_src emacs-lisp
+
+;; TODO - c-tab to go to the next tab on the tab line
+;; TODO - c-shift-tab to go to the previous tab on the tab line
+
+#+end_src
