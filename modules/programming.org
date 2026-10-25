@@ -39,6 +39,7 @@ $ GIT & VC & MAGIT & ETC
 
 $ VARIOUS PROGRAMMING LANGUAGES (done by AI) - check!
 #+begin_src emacs-lisp
+(use-package simpc-mode :vc (:url "https://github.com/rexim/simpc-mode") :mode ("\\.[hc]\\(pp\\)?\\'" . simpc-mode))
 (use-package solidity-mode :ensure t)
 (use-package ess           :ensure t)
 (use-package ess-r-mode

@@ -88,12 +88,14 @@ $ onncera-a-map (done by AI) - check!
 (define-key onncera-e-map (kbd "t") #'tabify)
 (define-key onncera-e-map (kbd "u") #'untabify)
 
-(global-set-key (kbd "M-o") 'other-window)
-
 #+end_src
 
-$ remaps
+$ remaps & bindings
 #+begin_src emacs-lisp
+(global-set-key (kbd "M-o") 'other-window)
+(global-set-key (kbd "C-/") 'undo-only)
+(global-set-key (kbd "C-?") 'undo-redo)
+
 (global-set-key [remap list-buffers] 'ibuffer)
 (global-set-key [remap move-beginning-of-line] 'onncera-smart-beginning-of-line)
 (global-set-key [remap kill-buffer] 'onncera-buries-boofers)
