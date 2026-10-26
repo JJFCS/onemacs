@@ -26,15 +26,12 @@ $ emacs 31 minibuffer
 
 $ FIDO
 #+begin_src emacs-lisp
-
-;; TODO - do not cut the word short when there is a match & when there is a 'Matched' , highlight the word in red - last i checked this is a long ass solution
 (fido-mode 1)
-(define-key icomplete-minibuffer-map (kbd "<right>") #'icomplete-forward-completions) (define-key icomplete-minibuffer-map (kbd "<left>")  #'icomplete-backward-completions) (define-key icomplete-fido-mode-map (kbd "TAB") #'icomplete-force-complete)
+(define-key icomplete-minibuffer-map (kbd "<right>") #'icomplete-forward-completions) (define-key icomplete-minibuffer-map (kbd "<left>")  #'icomplete-backward-completions) (define-key icomplete-fido-mode-map (kbd "TAB") #'icomplete-force-complete) (define-key icomplete-fido-mode-map (kbd "<f1>") #'minibuffer-completion-help)
 (define-advice icomplete-completions (:filter-return (str) onncera-icomplete-padding)
     "prepend breathing room before horizontal completion candidates"
     (when (and (stringp str) (not (string-prefix-p " " str)))
         (concat "     " str)))
-
 #+end_src
 
 ! MISCELLANEOUS
