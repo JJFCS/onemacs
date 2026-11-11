@@ -16,12 +16,7 @@ LEGEND
 > view-echo-area-messages (C-h e)
 $ packages related to keybinds
 #+begin_src emacs-lisp
-(use-package which-key
-    :config
-    (setq which-key-show-early-on-C-h t)
-    (setq which-key-idle-delay 1e6)
-    (setq which-key-idle-secondary-delay 0.05)
-    (which-key-mode))
+;; which-key is configured once in emacs.org.
 #+end_src
 
 ! reclaiming keys
@@ -155,14 +150,14 @@ $ remaps & bindings
 #+begin_src emacs-lisp
 (pcase-dolist (`(,key . ,cmd)
                   '(
-                       ;; Javelin
-                       ("<f9>"   . javelin-go-or-assign-to-1)
-                       ("<f10>"  . javelin-go-or-assign-to-2)
-                       ("<f11>"  . javelin-go-or-assign-to-3)
-                       ("<f12>"  . javelin-go-or-assign-to-4)
-                       ("<f13>"  . javelin-delete)                 ;; delete a specific position for the current project/branch
-                       ("<f14>"  . javelin-clear)                  ;; delete all positions for current project/branch
-                       ("<f15>"  . javelin-toggle-quick-menu)
+                       ;; Project/branch jump slots (persistent built-in bookmarks)
+                       ("<f9>"   . onncera-jump-1)
+                       ("<f10>"  . onncera-jump-2)
+                       ("<f11>"  . onncera-jump-3)
+                       ("<f12>"  . onncera-jump-4)
+                       ("<f13>"  . onncera-jump-delete)                 ;; delete a specific position for the current project/branch
+                       ("<f14>"  . onncera-jump-clear)                  ;; delete all positions for current project/branch
+                       ("<f15>"  . onncera-jump-menu)
 
                        ;; Multiple Cursors
                        ("C-<f9>"  . mc/mark-previous-like-this)    ;; NOTE - need to select a region
@@ -186,4 +181,78 @@ $ TESTING KEYBINDS
 ;; TODO - c-tab to go to the next tab on the tab line
 ;; TODO - c-shift-tab to go to the previous tab on the tab line
 
+#+end_src
+
+* Programming command groups
+New prefixes use the user-reserved C-c letter space. Mode-local C-c bindings
+still take precedence, as in ordinary Emacs. C-x p remains the native project map.
+
+#+begin_src emacs-lisp
+(defun onncera-prefix (key name bindings)
+  "Create a named prefix on KEY with NAME and BINDINGS."
+  (let ((map (make-sparse-keymap name)))
+    (dolist (binding bindings)
+      (define-key map (kbd (car binding)) (cdr binding)))
+    (global-set-key (kbd key) map)
+    map))
+
+(onncera-prefix "C-c ." "completion"
+ '(("." . completion-at-point) ("b" . cape-dabbrev)
+   ("a" . onncera-complete-all-buffers) ("k" . cape-keyword)
+   ("f" . cape-file) ("l" . cape-line) ("w" . cape-dict)
+   ("s" . yas-insert-snippet) ("e" . cape-elisp-symbol)
+   ("h" . cape-history) ("u" . cape-tex) ("m" . cape-emoji)
+   ("t" . onncera-toggle-auto-completion)))
+(onncera-prefix "C-c c" "code"
+ '(("c" . project-compile) ("r" . recompile) ("t" . onncera-project-test)
+   ("f" . apheleia-format-buffer) ("a" . apheleia-mode)
+   ("d" . dape) ("b" . dape-breakpoint-toggle)
+   ("l" . onncera-list-diagnostics) ("n" . next-error) ("p" . previous-error)))
+(onncera-prefix "C-c g" "git"
+ '(("s" . magit-status) ("l" . magit-log-buffer-file)
+   ("b" . magit-blame-addition) ("d" . vc-diff)
+   ("h" . git-gutter:popup-hunk) ("a" . git-gutter:stage-hunk)
+   ("r" . git-gutter:revert-hunk)))
+(onncera-prefix "C-c w" "windows"
+ '(("u" . winner-undo) ("r" . winner-redo)
+   ("h" . windmove-left) ("j" . windmove-down) ("k" . windmove-up) ("l" . windmove-right)
+   ("s" . split-window-below) ("v" . split-window-right)
+   ("d" . delete-window) ("o" . delete-other-windows)))
+(onncera-prefix "C-c t" "terminals"
+ '(("e" . eat) ("p" . eat-project) ("s" . eshell) ("b" . shell)))
+(onncera-prefix "C-c h" "help"
+ '(("f" . helpful-callable) ("v" . helpful-variable) ("k" . helpful-key)
+   ("." . helpful-at-point) ("c" . onncera-open-config)
+   ("p" . onncera-sync-packages) ("r" . onncera-package-report)))
+
+(global-set-key (kbd "C-c p") (copy-keymap project-prefix-map))
+(keymap-set (keymap-lookup global-map "C-c p") "t" #'onncera-build-tags)
+(keymap-set onncera-a-map "o" #'imenu-list-smart-toggle)
+(keymap-set onncera-e-map "e" #'er/expand-region)
+(keymap-set onncera-e-map "s" #'er/contract-region)
+(keymap-set onncera-e-map "a" #'align-regexp)
+(keymap-set onncera-e-map "r" #'query-replace-regexp)
+(keymap-set onncera-e-map "c" #'onncera-clean-whitespace)
+(keymap-set onncera-e-map "v" #'vundo)
+(keymap-set onncera-e-map "k" #'easy-kill)
+(keymap-set onncera-e-map "f" #'hs-toggle-hiding)
+(global-set-key (kbd "M-`") #'shell-pop)
+(global-set-key (kbd "M-TAB") #'completion-at-point)
+(global-set-key (kbd "C-.") #'embark-act)
+(global-set-key (kbd "C-;") #'embark-dwim)
+
+(when (locate-library "consult")
+  (dolist (binding '(("C-x b" . consult-buffer)
+                     ("C-x 4 b" . consult-buffer-other-window)
+                     ("C-x 5 b" . consult-buffer-other-frame)
+                     ("C-x r b" . consult-bookmark)
+                     ("M-y" . consult-yank-pop)
+                     ("M-s l" . consult-line) ("M-s L" . consult-line-multi)
+                     ("M-s r" . consult-ripgrep) ("M-s g" . consult-git-grep)
+                     ("M-g i" . consult-imenu) ("M-g I" . consult-imenu-multi)
+                     ("M-g o" . consult-outline) ("M-g m" . consult-mark)
+                     ("M-g g" . consult-goto-line) ("M-g e" . consult-compile-error)
+                     ("C-c a i" . consult-imenu) ("C-c p b" . consult-project-buffer)))
+    (global-set-key (kbd (car binding)) (cdr binding)))
+  (keymap-set minibuffer-local-map "M-r" #'consult-history))
 #+end_src

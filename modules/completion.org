@@ -1,0 +1,275 @@
+#+title: Completion: minibuffer and code, with no language servers
+
+* Minibuffer
+Vertico draws the menu; Orderless filters it; Marginalia annotates it; Consult
+provides search and navigation; Embark supplies actions and export.
+The ordinary =C-s= search remains intact. =M-s l= is the Consult line search.
+
+#+begin_src emacs-lisp
+;;; completion.el --- Minibuffer and code completion -*- lexical-binding: t; -*-
+(setq completion-ignore-case t
+      read-buffer-completion-ignore-case t
+      read-file-name-completion-ignore-case t
+      completion-show-help nil
+      completion-cycle-threshold nil
+      completion-styles '(basic partial-completion flex))
+
+;; One minibuffer UI at a time. A fresh install has a useful built-in fallback.
+(when (bound-and-true-p fido-mode) (fido-mode -1))
+(when (bound-and-true-p icomplete-mode) (icomplete-mode -1))
+(if (locate-library "vertico")
+    (progn (require 'vertico) (vertico-mode 1))
+  (icomplete-vertical-mode 1))
+
+(use-package vertico
+  :if (locate-library "vertico")
+  :demand t
+  :config
+  (setq vertico-count 12 vertico-resize t vertico-cycle t)
+  (require 'vertico-directory)
+  (keymap-set vertico-map "RET" #'vertico-directory-enter)
+  (keymap-set vertico-map "DEL" #'vertico-directory-delete-char)
+  (keymap-set vertico-map "M-DEL" #'vertico-directory-delete-word)
+  (add-hook 'rfn-eshadow-update-overlay-hook #'vertico-directory-tidy))
+
+(use-package orderless
+  :if (locate-library "orderless")
+  :demand t
+  :config
+  (setq completion-styles '(orderless basic)
+        completion-category-defaults nil
+        completion-category-overrides '((file (styles basic partial-completion))))
+  (when (boundp 'completion-pcm-leading-wildcard)
+    (setq completion-pcm-leading-wildcard t)))
+
+(use-package marginalia
+  :if (locate-library "marginalia")
+  :demand t
+  :config (marginalia-mode 1))
+
+(use-package consult
+  :if (locate-library "consult")
+  :commands (consult-buffer consult-buffer-other-window consult-buffer-other-frame
+             consult-project-buffer consult-line consult-line-multi consult-ripgrep
+             consult-git-grep consult-find consult-recent-file consult-bookmark
+             consult-yank-pop consult-imenu consult-imenu-multi consult-outline
+             consult-mark consult-global-mark consult-history consult-goto-line
+             consult-compile-error consult-flycheck consult-xref)
+  :init
+  ;; Deliberate preview: moving through candidates does not keep moving your code.
+  (setq consult-preview-key "M-.")
+  :config
+  (setq consult-narrow-key "<")
+  (add-to-list 'consult-buffer-filter "\\`\\*")
+  (with-eval-after-load 'xref
+    (setq xref-show-xrefs-function #'consult-xref
+          xref-show-definitions-function #'consult-xref)))
+
+(use-package embark
+  :if (locate-library "embark")
+  :commands (embark-act embark-dwim embark-export embark-collect embark-bindings))
+
+(use-package embark-consult
+  :if (locate-library "embark-consult")
+  :after (embark consult)
+  :demand t)
+
+(use-package wgrep
+  :if (locate-library "wgrep")
+  :commands wgrep-change-to-wgrep-mode)
+#+end_src
+
+* Bounded, project-aware word completion
+Completion reads the current buffer and up to twelve other open buffers.
+Inside a project it uses that project's buffers; outside one it uses matching
+major modes. It never opens a project tree to mine words while you type.
+
+#+begin_src emacs-lisp
+(defun onncera-light-buffer-p ()
+  "Whether this buffer is suitable for automatic local editing extras."
+  (and (not (file-remote-p default-directory))
+       (< (buffer-size) onncera-large-buffer-size)))
+
+(defun onncera-completion-buffers ()
+  "Return current and bounded, relevant local buffers for Cape."
+  (let* ((current (current-buffer))
+         (mode major-mode)
+         (project (and (not (file-remote-p default-directory)) (project-current nil)))
+         (project-bufs (and project (project-buffers project)))
+         (candidates
+          (cl-remove-if-not
+           (lambda (buffer)
+             (and (not (eq buffer current))
+                  (with-current-buffer buffer
+                    (and (onncera-light-buffer-p)
+                         (not (string-prefix-p " " (buffer-name)))
+                         (derived-mode-p 'prog-mode 'text-mode 'conf-mode)
+                         (if project (memq buffer project-bufs) (eq major-mode mode))))))
+           (buffer-list))))
+    (cons current (seq-take candidates onncera-completion-buffer-limit))))
+
+(defun onncera-complete-all-buffers ()
+  "Manually complete words from all ordinary local editing buffers."
+  (interactive)
+  (require 'cape)
+  (let ((cape-dabbrev-buffer-function
+         (lambda ()
+           (cl-remove-if-not
+            (lambda (buffer)
+              (with-current-buffer buffer
+                (and (onncera-light-buffer-p)
+                     (derived-mode-p 'prog-mode 'text-mode 'conf-mode))))
+            (buffer-list)))))
+    (call-interactively #'cape-dabbrev)))
+
+(defun onncera-tags-capf ()
+  "Complete indexed project identifiers after a TAGS table has been selected."
+  (when (or (bound-and-true-p tags-file-name) (bound-and-true-p tags-table-list))
+    (require 'etags)
+    (tags-completion-at-point-function)))
+
+(defun onncera-static-code-capf ()
+  "Merge buffer words, language keywords, snippets and configured tags."
+  (apply #'cape-wrap-super
+         (append (list #'cape-dabbrev #'cape-keyword #'cape-abbrev #'onncera-tags-capf)
+                 (when (fboundp 'yasnippet-capf) (list #'yasnippet-capf)))))
+
+(defun onncera-setup-completion ()
+  "Retain native CAPFs and add non-LSP fallback sources to this buffer."
+  (when (and (locate-library "cape")
+             (derived-mode-p 'prog-mode 'text-mode 'conf-mode 'comint-mode 'eshell-mode))
+    (require 'cape)
+    ;; Prefix/flex matching is cheaper and more natural for identifiers than
+    ;; the minibuffer's space-separated Orderless queries.
+    (setq-local completion-styles '(basic flex)
+                completion-category-overrides nil
+                completion-category-defaults nil
+                cape-dabbrev-buffer-function #'onncera-completion-buffers
+                cape-line-buffer-function #'onncera-completion-buffers
+                dabbrev-case-fold-search nil
+                dabbrev-case-replace nil
+                corfu-auto (and onncera-completion-auto
+                                (onncera-light-buffer-p)
+                                (not (derived-mode-p 'comint-mode 'eshell-mode))))
+    (let ((native (cl-remove-if
+                   (lambda (capf)
+                     (memq capf '(t cape-file onncera-static-code-capf)))
+                   completion-at-point-functions)))
+      ;; Native REPL and mode completion retains its own metadata and boundaries.
+      ;; Nonexclusive wrappers permit static fallback when a native source has
+      ;; no matching candidates. Files stay separate: they use different bounds.
+      (setq-local completion-at-point-functions
+                  (append (list #'cape-file)
+                          ;; Elisp's symbol CAPF is safe to combine with the
+                          ;; static sources, so matching built-ins do not hide
+                          ;; words or snippets with the same prefix.
+                          (when (memq #'elisp-completion-at-point native)
+                            (list (cape-capf-super #'elisp-completion-at-point
+                                                   #'onncera-static-code-capf)))
+                          (mapcar #'cape-capf-nonexclusive
+                                  (remq #'elisp-completion-at-point native))
+                          (list #'onncera-static-code-capf))))
+    (when (fboundp 'corfu-mode) (corfu-mode 1))))
+
+(use-package cape
+  :if (locate-library "cape")
+  :commands (cape-dabbrev cape-keyword cape-file cape-line cape-dict
+             cape-history cape-abbrev cape-elisp-symbol cape-tex cape-sgml cape-emoji)
+  :init
+  (require 'project)
+  (add-hook 'after-change-major-mode-hook #'onncera-setup-completion 90))
+
+;; Cape already ships keyword lists for common languages. Supply the mode
+;; aliases and small additional lists used by your C/R/Solidity/TS workflow.
+(with-eval-after-load 'cape-keyword
+  (dolist (entry '((simpc-mode c++-mode)
+                   (typescript-ts-mode typescript-mode)
+                   (tsx-ts-mode typescript-mode)
+                   (web-mode typescript-mode)
+                   (ess-r-mode "function" "if" "else" "for" "in" "while" "repeat"
+                               "break" "next" "TRUE" "FALSE" "NULL" "NA" "Inf" "NaN")
+                   (solidity-mode "pragma" "solidity" "contract" "interface" "library"
+                                  "function" "constructor" "modifier" "event" "error"
+                                  "mapping" "struct" "enum" "address" "bool" "string"
+                                  "bytes" "uint256" "int256" "public" "private" "internal"
+                                  "external" "view" "pure" "payable" "returns" "return"
+                                  "memory" "storage" "calldata" "immutable" "constant"
+                                  "if" "else" "for" "while" "require" "revert" "emit"
+                                  "import" "is" "virtual" "override" "unchecked")))
+    (add-to-list 'cape-keyword-list entry))
+  (add-to-list 'cape-keyword-list
+               (cons 'typescript-mode
+                     (append '("abstract" "any" "as" "asserts" "declare" "enum"
+                               "implements" "infer" "interface" "keyof" "namespace"
+                               "never" "readonly" "satisfies" "type" "unknown")
+                             (alist-get 'javascript-mode cape-keyword-list)))))
+
+(use-package corfu
+  :if (locate-library "corfu")
+  :demand t
+  :init
+  (setq corfu-auto-delay 0.25
+        corfu-auto-prefix 3
+        corfu-cycle t
+        corfu-count 12
+        corfu-preselect 'prompt
+        corfu-preview-current nil
+        corfu-quit-no-match t
+        corfu-on-exact-match nil)
+  :config
+  (keymap-set corfu-map "C-n" #'corfu-next)
+  (keymap-set corfu-map "C-p" #'corfu-previous)
+  (keymap-set corfu-map "TAB" #'corfu-next)
+  (keymap-set corfu-map "<backtab>" #'corfu-previous)
+  ;; RET stays a newline until you explicitly select a candidate.
+  (keymap-set corfu-map "RET" #'onncera-corfu-return)
+  (keymap-set corfu-map "M-RET" #'corfu-insert)
+  (require 'corfu-popupinfo)
+  (setq corfu-popupinfo-delay '(nil . 0.3))
+  (corfu-popupinfo-mode 1)
+  ;; Documentation is opt-in via M-h; no second popup opening on its own.
+  (keymap-set corfu-map "M-h" #'corfu-popupinfo-toggle)
+  (require 'corfu-history)
+  (corfu-history-mode 1)
+  (add-to-list 'savehist-additional-variables 'corfu-history))
+
+(defun onncera-corfu-return ()
+  "Accept a selected candidate; otherwise insert the usual newline."
+  (interactive)
+  (if (>= corfu--index 0)
+      (corfu-insert)
+    (corfu-quit)
+    (newline-and-indent)))
+
+(defun onncera-toggle-auto-completion ()
+  "Toggle automatic completion in this buffer, retaining manual completion."
+  (interactive)
+  (require 'corfu)
+  (setq-local corfu-auto (not corfu-auto))
+  (corfu-mode -1)
+  (corfu-mode 1)
+  (message "Automatic completion %s" (if corfu-auto "on" "off")))
+#+end_src
+
+* Snippets without taking over TAB
+#+begin_src emacs-lisp
+(use-package yasnippet
+  :if (locate-library "yasnippet")
+  :commands (yas-expand yas-insert-snippet yas-new-snippet yas-visit-snippet-file)
+  :hook (prog-mode . yas-minor-mode)
+  :config
+  (add-to-list 'yas-snippet-dirs (expand-file-name "snippets/" user-emacs-directory))
+  (keymap-unset yas-minor-mode-map "TAB")
+  (keymap-unset yas-minor-mode-map "<tab>")
+  (yas-reload-all))
+
+(use-package yasnippet-snippets
+  :if (locate-library "yasnippet-snippets")
+  :after yasnippet
+  :demand t)
+
+(use-package yasnippet-capf
+  :if (locate-library "yasnippet-capf")
+  :after yasnippet
+  :demand t)
+#+end_src

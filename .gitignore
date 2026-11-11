@@ -1,1 +1,13 @@
+/elpa/
+/onemacs-cache/
+/modules/elisp/
 elisp/
+/tree-sitter/
+/eln-cache/
+/local.el
+/custom.el
+/transient/
+/.lsp-session-*
+*.elc
+*~
+.DS_Store
