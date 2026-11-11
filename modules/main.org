@@ -1,76 +1,114 @@
-mogman's minimal emacs - mme
+#+title: Main: settings and explicit package management
 
-LEGEND
+This is vanilla Emacs plus packages. Nothing downloads at startup.
+Run =M-x onncera-sync-packages= once, then restart. Use =local.el= for machine
+settings before modules load and =custom.el= for final overrides.
 
-"!" == HEADER
-"-" == NOTES
-"$" == SUBTOPIC
-
+* Paths and personal options
 #+begin_src emacs-lisp
-    ;; -*- lexical-binding: t; -*-
-#+end_src
-
-! CUSTOM FILE
-#+begin_src emacs-lisp
-(setq custom-file (expand-file-name "custom.el" user-emacs-directory))
-(load custom-file t)
-#+end_src
-
-! PACKAGE MANAGEMENT
-#+begin_src emacs-lisp
-
+;;; main.el --- Bootstrap -*- lexical-binding: t; -*-
+(require 'cl-lib)
+(require 'subr-x)
 (require 'package)
-(setq package-archives '(
-    ("melpa" . "https://melpa.org/packages/") ("elpa" . "https://elpa.gnu.org/packages/")
-              ("nongnu" . "https://elpa.nongnu.org/nongnu/")
-        )
-)
+(require 'use-package)
 
-(setq package-archive-priorities '(
-    ("melpa" . 15) ("elpa" . 10) ("nongnu" . 5)
-        )
-)
+(defgroup onncera nil "Your modular programming environment." :group 'convenience)
+(defcustom onncera-completion-buffer-limit 12
+  "Maximum extra buffers scanned by automatic word completion."
+  :type 'natnum)
+(defcustom onncera-large-buffer-size (* 1024 1024)
+  "Disable automatic editing extras above this many characters."
+  :type 'natnum)
+(defcustom onncera-completion-auto t
+  "Show completion automatically in ordinary local programming buffers."
+  :type 'boolean)
+(defcustom onncera-use-tree-sitter t
+  "Use installed grammars, with classic modes as a fallback."
+  :type 'boolean)
+(defcustom onncera-use-simpc t
+  "Keep your simpc-mode preference for C and C++ when installed."
+  :type 'boolean)
+(defcustom onncera-font "JetBrainsMonoNL Nerd Font"
+  "Preferred code font; leave the default alone when unavailable."
+  :type 'string)
+(defcustom onncera-font-height 140 "Code font size in tenths of a point." :type 'integer)
+(defcustom onncera-theme nil
+  "Theme to load, or nil to retain your unthemed appearance."
+  :type '(choice (const nil) symbol))
 
-(unless (package-installed-p 'use-package) (package-refresh-contents) (package-install 'use-package))
-                    (require 'use-package)
-
+(defconst onncera-cache-directory
+  (expand-file-name "onemacs-cache/" user-emacs-directory))
+(defun onncera-cache-path (name)
+  "Return a cache path for NAME, creating its parent directory."
+  (let ((path (expand-file-name name onncera-cache-directory)))
+    (make-directory (file-name-directory path) t)
+    path))
+(load (expand-file-name "local.el" user-emacs-directory) t 'nomessage)
+(setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 #+end_src
 
-! GENERAL SETTINGS
+* Explicit package installation
 #+begin_src emacs-lisp
+(setq package-archives '(("gnu" . "https://elpa.gnu.org/packages/")
+                         ("nongnu" . "https://elpa.nongnu.org/nongnu/")
+                         ("melpa" . "https://melpa.org/packages/"))
+      package-archive-priorities '(("gnu" . 20) ("nongnu" . 10) ("melpa" . 5))
+      use-package-always-ensure nil)
+;; The Nongnu wgrep 3.0.0 tar includes upstream test files that can fail or
+;; redefine ERT tests during installation. MELPA's recipe omits those files.
+(add-to-list 'package-pinned-packages '(wgrep . "melpa"))
+(unless (bound-and-true-p package--initialized)
+  (package-initialize))
 
-(add-to-list 'exec-path "/opt/homebrew/bin")
-(add-to-list 'default-frame-alist '(fullscreen . maximized))
+(defconst onncera-packages
+  '(vertico orderless marginalia consult embark embark-consult
+    corfu cape yasnippet yasnippet-snippets yasnippet-capf
+    avy move-text multiple-cursors expand-region easy-kill
+    helpful vundo imenu-list hl-todo
+    magit git-gutter wgrep shell-pop eat
+    flycheck apheleia dape
+    typescript-mode web-mode yaml-mode markdown-mode
+    go-mode rust-mode dockerfile-mode solidity-mode ess)
+  "Packages installed explicitly by `onncera-sync-packages'.")
 
-;; NOTE - for variables we use 't' or 'nil'
-;; NOTE - for functions we use numbers (1 == enabled , 0 == disabled , no number means toggle)
+(defconst onncera-vc-packages
+  '((simpc-mode :url "https://github.com/rexim/simpc-mode"))
+  "Upstream-only packages, installed once; updates are explicit.
+Versions are not locked. Record a working set with `onncera-package-report'.")
 
-(setq inhibit-splash-screen t)
-(setq insert-directory-program "gls")
-(setq enable-recursive-minibuffers t)
-(setq lossage-size 1000)
-(setq locate-command "mdfind")
-(setq view-lossage-auto-refresh t)
-(setq kill-do-not-save-duplicates t)
-(setq completions-detailed t)  ;; annotations (marginalia replacement)
-(setq display-line-numbers-type 'relative)
-(setq savehist-additional-variables '(search-ring regexp-search-ring kill-ring))
+(defun onncera-sync-packages ()
+  "Install missing declared packages and report failures.
+Existing packages are not upgraded. Restart after a successful sync."
+  (interactive)
+  (let ((missing (cl-remove-if #'package-installed-p onncera-packages))
+        failures)
+    (when missing
+      (package-refresh-contents)
+      (dolist (package missing)
+        (condition-case err
+            (package-install package)
+          (error (push (cons package (error-message-string err)) failures)))))
+    (dolist (spec onncera-vc-packages)
+      (unless (package-installed-p (car spec))
+        (condition-case err
+            (progn (require 'package-vc) (package-vc-install spec))
+          (error (push (cons (car spec) (error-message-string err)) failures)))))
+    (if failures
+        (with-help-window "*Onemacs package errors*"
+          (princ "Fix these failures, then sync again.\n\n")
+          (dolist (failure (nreverse failures))
+            (princ (format "%s: %s\n" (car failure) (cdr failure)))))
+      (message "Onemacs packages installed. Restart Emacs to activate them."))))
 
-(setq recentf-save-file "~/.emacs.d/onemacs-cache/recentf")  ;; NOTE - hardcoding the path
-(setq savehist-file     "~/.emacs.d/onemacs-cache/history")  ;; NOTE - hardcoding the path
-(savehist-mode 1) (recentf-mode 1)  ;; NOTE - to del M-x history go to onemacs-cache & delete the "history" file
-
-(setq make-backup-files nil)
-(setq auto-save-default nil) (setq auto-save-list-file-prefix nil)
-
-(put 'upcase-region 'disabled nil) (put 'downcase-region 'disabled nil)
-
-(blink-cursor-mode 0)
-(delete-selection-mode 1)
-(electric-pair-mode 1)
-(fringe-mode 0)
-
-(setq-default truncate-lines t)
-(setq  global-auto-revert-non-file-buffers t) (global-auto-revert-mode) (global-hl-line-mode)
-
+(defun onncera-package-report ()
+  "Show installed versions and VC revisions for a reproducibility record."
+  (interactive)
+  (require 'package-vc)
+  (with-help-window "*Onemacs packages*"
+    (dolist (name (append onncera-packages (mapcar #'car onncera-vc-packages)))
+      (let ((desc (cadr (assq name package-alist))))
+        (princ (format "%-24s %s%s\n" name
+                       (if desc (package-version-join (package-desc-version desc)) "MISSING")
+                       (if (and desc (package-vc-p desc))
+                           (format " revision=%s" (package-vc-commit desc)) "")))))))
 #+end_src

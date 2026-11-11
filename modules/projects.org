@@ -1,0 +1,166 @@
+#+title: Projects: navigation, builds, Git and indexed symbols
+
+* Project tools and compilation
+#+begin_src emacs-lisp
+;;; projects.el --- Projects, Git and tags -*- lexical-binding: t; -*-
+(use-package project
+  :demand t
+  :config
+  (setq project-switch-commands
+        '((project-find-file "Find file")
+          (project-find-regexp "Search")
+          (project-dired "Dired")
+          (project-compile "Compile")
+          (project-eshell "Eshell"))))
+
+(use-package compile
+  :commands (compile recompile)
+  :init (setq compilation-scroll-output 'first-error)
+  :config
+  (require 'ansi-color)
+  (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
+
+(defvar-local onncera-test-command nil
+  "Preferred project test command. Set in .dir-locals.el if useful.")
+(defun onncera-project-test ()
+  "Prompt for a test command and run it from the current project root."
+  (interactive)
+  (let* ((project (project-current t))
+         (default-directory (project-root project))
+         (command (read-shell-command "Test command: " onncera-test-command)))
+    (setq onncera-test-command command)
+    (compile command)))
+
+(use-package magit
+  :if (locate-library "magit")
+  :commands (magit-status magit-log-buffer-file magit-blame-addition magit-dispatch))
+
+(defun onncera-enable-git-gutter ()
+  "Enable gutter signs only in ordinary local version-controlled files."
+  (when (and buffer-file-name (onncera-light-buffer-p) (vc-backend buffer-file-name))
+    (git-gutter-mode 1)))
+(use-package git-gutter
+  :if (locate-library "git-gutter")
+  :commands (git-gutter-mode git-gutter:next-hunk git-gutter:previous-hunk
+             git-gutter:popup-hunk git-gutter:stage-hunk git-gutter:revert-hunk)
+  :init (add-hook 'find-file-hook #'onncera-enable-git-gutter)
+  :config (setq git-gutter:update-interval 1))
+#+end_src
+
+* Optional TAGS index
+Install Universal Ctags yourself if wanted. =C-c p t= builds an Emacs TAGS table
+asynchronously in the cache. Later buffers in that project pick it up locally.
+The index supplies identifier names and xref locations; it is not a type engine.
+
+#+begin_src emacs-lisp
+(defun onncera-project-tags-file (&optional project)
+  "Return the cached TAGS path for PROJECT or the current project."
+  (when-let* ((project (or project (project-current nil))))
+    (onncera-cache-path
+     (concat "tags/" (secure-hash 'sha1 (expand-file-name (project-root project))) ".TAGS"))))
+
+(defun onncera-use-project-tags ()
+  "Use an existing project TAGS table only in the current buffer."
+  (when (and (not (file-remote-p default-directory)) (derived-mode-p 'prog-mode))
+    (when-let* ((file (onncera-project-tags-file)) ((file-exists-p file)))
+      (setq-local tags-file-name file))))
+(add-hook 'after-change-major-mode-hook #'onncera-use-project-tags 50)
+
+(defun onncera-build-tags ()
+  "Build an Emacs TAGS index with Universal Ctags, without blocking editing."
+  (interactive)
+  (when (file-remote-p default-directory)
+    (user-error "Build the index from a local project checkout"))
+  (let* ((project (project-current t))
+         (default-directory (project-root project))
+         (program (or (executable-find "ctags") (user-error "Install Universal Ctags first")))
+         (file (onncera-project-tags-file project))
+         (temporary (concat file ".new"))
+         (name (concat "onemacs-tags-" (substring (secure-hash 'sha1 file) 0 12))))
+    (unless (string-match-p "Universal Ctags" (car (process-lines program "--version")))
+      (user-error "Use Universal Ctags; macOS /usr/bin/ctags is not supported"))
+    (when (process-live-p (get-process name))
+      (user-error "An index build for this project is already running"))
+    (make-process
+     :name name :buffer (get-buffer-create "*Onemacs tags*") :noquery t
+     :command (list program "-e" "-R" "-f" temporary
+                    "--exclude=.git" "--exclude=node_modules" "--exclude=.venv"
+                    "--exclude=vendor" "--exclude=dist" "--exclude=build" ".")
+     :sentinel
+     (lambda (process _event)
+       (when (memq (process-status process) '(exit signal))
+         (if (zerop (process-exit-status process))
+             (progn
+               (rename-file temporary file t)
+               (dolist (buffer (project-buffers project))
+                 (with-current-buffer buffer (onncera-use-project-tags)))
+               (message "Project TAGS index updated"))
+           (when (file-exists-p temporary) (delete-file temporary))
+           (message "TAGS build failed; see *Onemacs tags*")))))
+    (message "Building project TAGS index...")))
+#+end_src
+
+* Your four project and branch jump slots
+The previous F9–F15 bindings named undeclared Javelin functions. These commands
+implement those four slots with built-in persistent bookmarks. A prefix argument
+reassigns an occupied slot. Slots are scoped by project root and Git branch.
+
+#+begin_src emacs-lisp
+(defun onncera-jump-scope ()
+  "Return a stable bookmark prefix for the current project and Git branch."
+  (let* ((project (project-current nil))
+         (root (expand-file-name (if project (project-root project) default-directory)))
+         (default-directory root)
+         (branch
+          (if (and (not (file-remote-p root)) (executable-find "git"))
+              (with-temp-buffer
+                (if (zerop (process-file "git" nil t nil "symbolic-ref" "--short" "-q" "HEAD"))
+                    (string-trim (buffer-string)) "detached-or-no-git"))
+            "no-local-git")))
+    (concat "onncera-jump:" (secure-hash 'sha1 (concat root "\n" branch)) ":")))
+
+(defun onncera-jump-slot (slot &optional assign)
+  "Visit SLOT or assign the current location when empty or ASSIGN is non-nil."
+  (interactive "nSlot (1–4): \nP")
+  (unless (<= 1 slot 4) (user-error "Choose a slot from 1 to 4"))
+  (require 'bookmark)
+  (bookmark-maybe-load-default-file)
+  (let ((name (concat (onncera-jump-scope) (number-to-string slot))))
+    (if (or assign (not (bookmark-get-bookmark name 'noerror)))
+        (progn (bookmark-set name) (message "Assigned project slot %d" slot))
+      (bookmark-jump name))))
+
+(dotimes (index 4)
+  (let ((slot (1+ index)))
+    (defalias (intern (format "onncera-jump-%d" slot))
+      (lambda (&optional assign) (interactive "P") (onncera-jump-slot slot assign)))))
+
+(defun onncera-jump-delete (slot)
+  "Delete SLOT in this project and branch."
+  (interactive "nDelete slot (1–4): ")
+  (require 'bookmark)
+  (bookmark-delete (concat (onncera-jump-scope) (number-to-string slot))))
+
+(defun onncera-jump-clear ()
+  "Clear jump slots in this project and branch."
+  (interactive)
+  (require 'bookmark)
+  (bookmark-maybe-load-default-file)
+  (let ((prefix (onncera-jump-scope)))
+    (dolist (entry (copy-sequence bookmark-alist))
+      (when (string-prefix-p prefix (car entry)) (bookmark-delete (car entry))))))
+
+(defun onncera-jump-menu ()
+  "Choose one of this project and branch's assigned jump slots."
+  (interactive)
+  (require 'bookmark)
+  (bookmark-maybe-load-default-file)
+  (let* ((prefix (onncera-jump-scope))
+         (choices
+          (cl-loop for (name . record) in bookmark-alist
+                   when (string-prefix-p prefix name)
+                   collect (cons (format "%s  %s" (string-remove-prefix prefix name)
+                                         (alist-get 'filename record)) name))))
+    (unless choices (user-error "Assign a slot with F9–F12 first"))
+    (bookmark-jump (cdr (assoc (completing-read "Project slot: " choices nil t) choices)))))
+#+end_src

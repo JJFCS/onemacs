@@ -1,33 +1,21 @@
-mogman’s minimal emacs - mme
+#+title: Appearance: keep your fonts, spacing and minimal UI
 
-LEGEND
-
-"!" == HEADER
-"-" == NOTES
-"$" == SUBTOPIC
+Your compact line height remains controlled by your patched Emacs 31 variable.
+No package changes the patch or adds line spacing. Theme packages are optional;
+=M-x onncera-switch-theme= can choose any theme you install.
 
 #+begin_src emacs-lisp
-;; -*- lexical-binding: t; -*-
-#+end_src
-
-! THEMES & FONTS & APPEARANCES
-$ PACKAGES
-#+begin_src emacs-lisp
-(use-package autothemer      :ensure t)  ;; TODO - DEPENDENCY FOR PINEROSE THEME
-(use-package pixel-themes    :vc (:url "https://github.com/lucasobx/pixel-themes"))
-(use-package pinerose-emacs  :vc (:url "https://github.com/konrad1977/pinerose-emacs")
-    :no-require t)
-#+end_src
-
-$ SETTINGS
-#+begin_src emacs-lisp
-(add-to-list 'warning-suppress-types '(files missing-lexbind-cookie))  ;; TODO - SPECIFICALLY FOR PINEROSE THEME - REMOVE IN FUTURE
-(mapc        'disable-theme custom-enabled-themes)
+;;; appearances.el --- Your existing visual style -*- lexical-binding: t; -*-
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+(onncera-apply-fonts)
+(add-hook 'after-make-frame-functions #'onncera-apply-fonts)
+(advice-add 'enable-theme :after #'onncera-disable-italics)
+(when onncera-theme (load-theme onncera-theme t))
 (onncera-disable-italics)
-
 (set-face-attribute 'completions-group-title nil :slant 'normal)
 
-(set-face-attribute 'default        nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)  ;; MartianMono Nerd Font Mono
-(set-face-attribute 'fixed-pitch    nil :family "JetBrainsMonoNL Nerd Font" :height 140 :width 'condensed :weight 'regular)  ;; MartianMono Nerd Font Mono
-(set-face-attribute 'variable-pitch nil :family "CMU Concrete" :height 140)
+;; Final personal overrides, including Customize settings, win over defaults.
+(load custom-file t 'nomessage)
+(unless (locate-library "corfu")
+  (message "Onemacs first run: M-x onncera-sync-packages, then restart Emacs."))
 #+end_src

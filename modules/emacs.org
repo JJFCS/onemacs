@@ -1,74 +1,108 @@
-mogman’s minimal emacs - mme
+#+title: Emacs: built-in foundations, files and terminals
 
-LEGEND
-
-"!" == HEADER
-"-" == NOTES
-"$" == SUBTOPIC
-
+* Editing and history
 #+begin_src emacs-lisp
-;; -*- lexical-binding: t; -*-
-#+end_src
+;;; emacs.el --- Built-in foundations -*- lexical-binding: t; -*-
+(setq inhibit-startup-screen t
+      enable-recursive-minibuffers t
+      use-short-answers t
+      kill-do-not-save-duplicates t
+      view-lossage-auto-refresh t
+      read-process-output-max (* 1024 1024)
+      recentf-save-file (onncera-cache-path "recentf")
+      recentf-max-saved-items 300
+      recentf-auto-cleanup 'never
+      savehist-file (onncera-cache-path "history")
+      savehist-additional-variables '(search-ring regexp-search-ring kill-ring)
+      save-place-file (onncera-cache-path "places")
+      bookmark-default-file (onncera-cache-path "bookmarks")
+      bookmark-save-flag 1
+      project-list-file (onncera-cache-path "projects")
+      make-backup-files nil
+      auto-save-default nil
+      auto-save-list-file-prefix nil
+      global-auto-revert-non-file-buffers t
+      auto-revert-remote-files nil
+      auto-revert-verbose nil)
+(lossage-size 1000)
+(savehist-mode 1)
+(save-place-mode 1)
+(recentf-mode 1)
+(global-auto-revert-mode 1)
+(delete-selection-mode 1)
+(electric-pair-mode 1)
+(electric-indent-mode 1)
+(global-hl-line-mode 1)
+(blink-cursor-mode -1)
+(column-number-mode 1)
+(winner-mode 1)
+(repeat-mode 1)
+(minibuffer-depth-indicate-mode 1)
+(context-menu-mode 1)
+(when (fboundp 'fringe-mode) (fringe-mode 0))
+(setq-default truncate-lines t
+              indent-tabs-mode nil
+              tab-width 4
+              standard-indent 4
+              tab-always-indent 'complete
+              display-line-numbers-type 'relative)
+(put 'upcase-region 'disabled nil)
+(put 'downcase-region 'disabled nil)
 
-! COMPLETIONS & MINIBUFFER
-$ emacs 31 minibuffer
-#+begin_src emacs-lisp
+(use-package which-key
+  :demand t
+  :config
+  (setq which-key-show-early-on-C-h t
+        which-key-idle-delay 1e6
+        which-key-idle-secondary-delay 0.05)
+  (which-key-mode 1))
 
-(use-package minibuffer
-    :config (setq completions-sort 'alphabetical)  ;; 'historical'
-    (setq completion-ignore-case t)
-    (setq completion-show-help nil)
-    (setq completion-show-inline-help t) (setq completion-eager-update t) (setq completions-max-height 15)
-    (setq read-buffer-completion-ignore-case t) (setq read-file-name-completion-ignore-case t)
-)
-
-#+end_src
-
-$ FIDO
-#+begin_src emacs-lisp
-(fido-mode 1)
-(define-key icomplete-minibuffer-map (kbd "<right>") #'icomplete-forward-completions) (define-key icomplete-minibuffer-map (kbd "<left>")  #'icomplete-backward-completions) (define-key icomplete-fido-mode-map (kbd "TAB") #'icomplete-force-complete) (define-key icomplete-fido-mode-map (kbd "<f1>") #'minibuffer-completion-help)
-(define-advice icomplete-completions (:filter-return (str) onncera-icomplete-padding)
-    "prepend breathing room before horizontal completion candidates"
-    (when (and (stringp str) (not (string-prefix-p " " str)))
-        (concat "     " str)))
-#+end_src
-
-! MISCELLANEOUS
-$ SHELL-POP
-#+begin_src emacs-lisp
-(use-package shell-pop :ensure t
-    :bind ("M-`" . shell-pop)
-    :config
-    (with-eval-after-load 'term
-    (define-key term-raw-map (kbd "M-`") #'shell-pop))  ;; needed for my personal keybind
-    (setq   shell-pop-universal-key "M-`")              ;; the keybind to toggle the shell window
-    (setq   shell-pop-window-position "bottom")
-    (setq   shell-pop-full-span nil)
-    (setq   shell-pop-term-shell shell-file-name)
-    (setq   shell-pop-window-size 50)
-    (setopt shell-pop-shell-type '("ansi-term" "*ansi-term*" (lambda ()  ;; `setopt is important
-                                   (ansi-term shell-pop-term-shell))))
-    (setq   shell-pop-autocd-to-working-dir nil))
-#+end_src
-
-$ IMENU
-#+begin_src emacs-lisp
-(use-package imenu
-    :config (setq imenu-auto-rescan t) (setq imenu-level-separator "/") (setq imenu-max-item-no-type 0))
-#+end_src
-
-$ IBUFFER
-#+begin_src emacs-lisp
 (use-package ibuffer
-    :config
-    (setq ibuffer-default-display-maybe-show-predicates nil)  ;; ensures we initially hide buffers matching those predicates - `*`
-    (add-to-list 'ibuffer-maybe-show-predicates "^\\*")  ;; note - C-u g toggles visibility
-)
+  :commands ibuffer
+  :config
+  (setq ibuffer-default-display-maybe-show-predicates nil)
+  (add-to-list 'ibuffer-maybe-show-predicates "^\\*"))
+
+(use-package dired
+  :commands (dired dired-jump)
+  :config
+  (setq dired-dwim-target t
+        dired-kill-when-opening-new-dired-buffer t)
+  (if-let* ((gls (executable-find "gls")))
+      (setq insert-directory-program gls
+            dired-listing-switches "-alh --group-directories-first")
+    (when (eq system-type 'darwin)
+      (require 'ls-lisp)
+      (setq ls-lisp-use-insert-directory-program nil))
+    (setq dired-listing-switches "-alh")))
+
+(use-package so-long :demand t :config (global-so-long-mode 1))
+(use-package editorconfig :demand t :config (editorconfig-mode 1))
 #+end_src
 
-$ MULTIPLE CURSORS
+* Terminals
+Your =M-`= ansi-term popup remains available. EAT is under =C-c t e=.
+
 #+begin_src emacs-lisp
-(use-package multiple-cursors :ensure t :defer t
-    :init   (setq mc/list-file "~/.emacs.d/onemacs-cache/mc-lists.el"))
+(use-package shell-pop
+  :if (locate-library "shell-pop")
+  :commands shell-pop
+  :init
+  (setq shell-pop-universal-key "M-`"
+        shell-pop-window-position "bottom"
+        shell-pop-full-span nil
+        shell-pop-term-shell shell-file-name
+        shell-pop-window-size 50
+        shell-pop-autocd-to-working-dir nil)
+  :config
+  (setopt shell-pop-shell-type
+          '("ansi-term" "*ansi-term*"
+            (lambda () (ansi-term shell-pop-term-shell))))
+  (with-eval-after-load 'term
+    (keymap-set term-raw-map "M-`" #'shell-pop)))
+
+(use-package eat
+  :if (locate-library "eat")
+  :commands (eat eat-project)
+  :init (setq eat-kill-buffer-on-exit t))
 #+end_src

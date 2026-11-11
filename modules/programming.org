@@ -1,73 +1,143 @@
-mogman’s minimal emacs - mme
+#+title: Programming: language modes, checks, formatting and debugging
 
-LEGEND
-
-"!" == HEADER
-"-" == NOTES
-"$" == SUBTOPIC
+* Languages
+C/C++ keeps your simpc preference. Python, JavaScript, Java, SQL and shell
+editing are built in. Other declared language packages load by file type.
+No Eglot, lsp-mode, Tide, semantic server or AI completion is enabled.
 
 #+begin_src emacs-lisp
-;; -*- lexical-binding: t; -*-
-#+end_src
-
-! PROGRAMMING
-$ TABS & INDENTS & SPACES & WHITESPACES & ETC
-#+begin_src emacs-lisp
-(setq whitespace-style
-    '(face indentation newline tabs tab-mark trailing
-        spaces
-        space-before-tab
-        space-after-tab
-        space-mark
-    )
-)
-
-(electric-indent-mode 1)
-
-(setq python-indent-guess-indent-offset nil)
-
-(setq-default tab-always-indent 'complete) (setq-default indent-tabs-mode nil)
-(setq-default tab-width 4)
-(setq-default standard-indent 4)
-#+end_src
-
-$ GIT & VC & MAGIT & ETC
-#+begin_src emacs-lisp
-(use-package git-gutter :ensure t)
-(use-package magit      :ensure t :defer t)
-#+end_src
-
-$ VARIOUS PROGRAMMING LANGUAGES (done by AI) - check!
-#+begin_src emacs-lisp
-(use-package simpc-mode :vc (:url "https://github.com/rexim/simpc-mode") :mode ("\\.[hc]\\(pp\\)?\\'" . simpc-mode))
-(use-package solidity-mode :ensure t)
-(use-package ess           :ensure t)
+;;; programming.el --- Programming without language servers -*- lexical-binding: t; -*-
+(setq python-indent-guess-indent-offset nil
+      python-indent-offset 4
+      js-indent-level 4
+      css-indent-offset 4
+      sh-basic-offset 4)
+(use-package simpc-mode
+  :if (and onncera-use-simpc (locate-library "simpc-mode"))
+  :mode ("\\.\\(?:c\\|h\\|cc\\|hh\\|cpp\\|hpp\\|cxx\\|hxx\\)\\'" . simpc-mode))
+(use-package typescript-mode
+  :if (locate-library "typescript-mode")
+  :mode ("\\.ts\\'" . typescript-mode)
+  :init (setq typescript-indent-level 4))
+(use-package web-mode
+  :if (locate-library "web-mode")
+  :mode ("\\.\\(?:tsx\\|jsx\\|vue\\|svelte\\)\\'" . web-mode)
+  :init (setq web-mode-code-indent-offset 4
+              web-mode-markup-indent-offset 4
+              web-mode-css-indent-offset 4))
+(use-package yaml-mode
+  :if (locate-library "yaml-mode")
+  :mode "\\.ya?ml\\'")
+(use-package markdown-mode
+  :if (locate-library "markdown-mode")
+  :mode ("\\.md\\'" . markdown-mode))
+(use-package go-mode
+  :if (locate-library "go-mode")
+  :mode "\\.go\\'")
+(use-package rust-mode
+  :if (locate-library "rust-mode")
+  :mode "\\.rs\\'")
+(use-package dockerfile-mode
+  :if (locate-library "dockerfile-mode")
+  :mode ("\\(?:\\`\\|/\\)Dockerfile\\(?:\\..*\\)?\\'" . dockerfile-mode))
+(use-package solidity-mode
+  :if (locate-library "solidity-mode")
+  :mode "\\.sol\\'")
 (use-package ess-r-mode
-        :ensure ess
-        :mode ("\\.[rR]\\'" . ess-r-mode)
-        :commands R
-        :init
-        (setq ess-style 'RStudio)
-        (setq ess-indent-offset 4)
-        (setq ess-ask-for-ess-directory nil)
-        (setq ess-eval-visibly 'nowait)
-        (setq inferior-R-args "--no-save --no-restore-data")
-        :hook (
-            (ess-r-mode . (lambda () (setq-local ess-indent-offset 4)))
-        )
-)
+  :if (locate-library "ess-r-mode")
+  :commands R
+  :mode ("\\.[rR]\\'" . ess-r-mode)
+  :init
+  (setq ess-style 'RStudio
+        ess-indent-offset 4
+        ess-ask-for-ess-directory nil
+        ess-eval-visibly 'nowait
+        inferior-R-args "--no-save --no-restore-data")
+  (let ((r-bin "/Library/Frameworks/R.framework/Resources/bin"))
+    (when (file-directory-p r-bin)
+      (add-to-list 'exec-path r-bin)
+      (setenv "PATH" (concat r-bin path-separator (getenv "PATH"))))))
 #+end_src
 
-! HOOKS
+* Tree-sitter: syntax parsing, separate from language servers
+Only already installed grammars are used. =M-x treesit-install-language-grammar=
+installs a grammar when you explicitly request it; restart afterwards. Emacs 31
+language modes register grammar recipes when loaded. A compiler and Git are
+needed to build grammars; the command prompts for a recipe if none is registered.
+
 #+begin_src emacs-lisp
-(add-hook 'before-save-hook 'delete-trailing-whitespace)
-(add-hook   'prog-mode-hook
-    (lambda ()
-        (display-line-numbers-mode)
-        (git-gutter-mode 1)
-        (whitespace-mode 1)
-        (setq-local tab-width 4)
-        (setq-local indent-tabs-mode nil)
-    )
-)
+(require 'treesit)
+(setq treesit-font-lock-level 3)
+(when (boundp 'treesit-auto-install-grammar)
+  (setq treesit-auto-install-grammar nil))
+
+(when (and onncera-use-tree-sitter (treesit-available-p))
+  (dolist (entry '((python python-mode python-ts-mode)
+                   (javascript js-mode js-ts-mode)
+                   (typescript typescript-mode typescript-ts-mode)
+                   (java java-mode java-ts-mode)
+                   (go go-mode go-ts-mode)
+                   (rust rust-mode rust-ts-mode)
+                   (css css-mode css-ts-mode)
+                   (json js-json-mode json-ts-mode)
+                   (yaml yaml-mode yaml-ts-mode)
+                   (toml conf-toml-mode toml-ts-mode)))
+    (pcase-let ((`(,language ,classic ,modern) entry))
+      (when (and (fboundp modern) (treesit-ready-p language t))
+        (add-to-list 'major-mode-remap-alist (cons classic modern)))))
+  (when (and (fboundp 'tsx-ts-mode) (treesit-ready-p 'tsx t))
+    (add-to-list 'auto-mode-alist '("\\.tsx\\'" . tsx-ts-mode)))
+  (unless onncera-use-simpc
+    (dolist (entry '((c c-mode c-ts-mode) (cpp c++-mode c++-ts-mode)))
+      (pcase-let ((`(,language ,classic ,modern) entry))
+        (when (and (fboundp modern) (treesit-ready-p language t))
+          (add-to-list 'major-mode-remap-alist (cons classic modern)))))))
 #+end_src
+
+* Diagnostics: standalone tools, checked on save
+Emacs Lisp uses built-in Flymake. Other local source buffers use Flycheck only
+if an appropriate installed checker is available. Install linters in your
+project environment yourself; activating the relevant virtual environment or
+adding =node_modules/.bin= to the process PATH makes them discoverable.
+
+#+begin_src emacs-lisp
+(defun onncera-start-diagnostics ()
+  "Enable one diagnostics frontend in ordinary local source buffers."
+  (when (onncera-light-buffer-p)
+    (if (derived-mode-p 'emacs-lisp-mode 'lisp-interaction-mode)
+        (flymake-mode 1)
+      (when (fboundp 'flycheck-mode) (flycheck-mode 1)))))
+(use-package flymake :commands flymake-mode)
+(use-package flycheck
+  :if (locate-library "flycheck")
+  :commands (flycheck-mode flycheck-list-errors flycheck-next-error flycheck-previous-error)
+  :init
+  (setq flycheck-check-syntax-automatically '(save mode-enabled)
+        flycheck-emacs-lisp-load-path 'inherit))
+(add-hook 'prog-mode-hook #'onncera-start-diagnostics)
+
+(defun onncera-list-diagnostics ()
+  "Show the diagnostics frontend active in this buffer."
+  (interactive)
+  (if (bound-and-true-p flymake-mode)
+      (flymake-show-buffer-diagnostics)
+    (if (bound-and-true-p flycheck-mode)
+        (flycheck-list-errors)
+      (user-error "No diagnostics frontend is active in this buffer"))))
+
+(use-package apheleia
+  :if (locate-library "apheleia")
+  :commands (apheleia-format-buffer apheleia-mode)
+  :init (setq apheleia-remote-algorithm 'cancel)
+  :config
+  (add-to-list 'apheleia-mode-alist '(simpc-mode . clang-format)))
+(use-package dape
+  :if (locate-library "dape")
+  :commands (dape dape-breakpoint-toggle dape-breakpoint-log dape-next
+             dape-step-in dape-step-out dape-continue dape-quit))
+#+end_src
+
+Format explicitly with =C-c c f=. Enable =apheleia-mode= in a chosen buffer for
+formatting on save. Dape talks to debug adapters (DAP), independently of LSP;
+the matching debugger or adapter must be installed before starting a session.
+Native =M-x gdb= is also available.
